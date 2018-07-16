@@ -1,5 +1,22 @@
 #{extends 'Submit/submitStep.html' /}
-#{set title:'Vireo Thesis and Dissertation Submital System - Submission - Upload Your Files' /}
+#{set title:'Vireo Thesis and Dissertaion Submital System - Submission - Upload Your Files' /}
+
+
+#{ifEnabled EMBARGO_TYPE }
+<script type="text/javascript">
+		function showEmbargoOptions()
+		{
+			jQuery("#embargoType-list").show();
+		}
+
+		function hideEmbargoOptions()
+		{
+			jQuery("#embargoType-list").hide();
+		}
+</script>
+#{/ifEnabled}
+
+
 
 <br />
 <div class="row pageHead">
@@ -19,11 +36,12 @@
     </ul>
     #{/ifErrors}
     <br/>
-    
+
 	<form action="@{submit.FileUpload.fileUpload(subId)}" method="POST" class="form-horizontal" enctype="multipart/form-data">
 		<input type="hidden" name="step" value="fileUpload"/>
-		
+
 		#{ifEnabled PRIMARY_ATTACHMENT}
+		<!-- ps {if 1} -->
 		<fieldset id="primaryFileUpload">
 			<legend>Upload Primary Document</legend>
             <p>#{fieldHelp PRIMARY_ATTACHMENT /}</p>
@@ -34,7 +52,7 @@
                     <div class="controls">
                         <input type="file" id="primaryFile" class="input-file" name="primaryDocument"><br/>
                         <input type="submit" value="Upload" class="uploadBtn btn" name="uploadPrimary">
-                        
+
                     </div>
                 #{/if}
                 #{else}
@@ -50,10 +68,11 @@
 			</div>
 		</fieldset>
 		#{/ifEnabled}
-		
+		<!-- ps {/if} -->
+
 		#{ifEnabled [SUPPLEMENTAL_ATTACHMENT,SOURCE_ATTACHMENT,ADMINISTRATIVE_ATTACHMENT]}
 		<fieldset id="additionalFileUpload">
-			<legend>Upload Additional Files</legend>            
+			<legend>Upload Additional Files</legend>
 			<div class="control-group #{errorClass 'additionalDocument' /} #{fieldClass SUPPLEMENTAL_ATTACHMENT /} #{fieldClass SOURCE_ATTACHMENT /} #{fieldClass ADMINISTRATIVE_ATTACHMENT /}">
 			#{ifEnabled SUPPLEMENTAL_ATTACHMENT}
             <label class="control-label #{fieldClass SUPPLEMENTAL_ATTACHMENT /}"><span class="required-star">*</span> #{fieldLabel SUPPLEMENTAL_ATTACHMENT /}:</label>
@@ -89,7 +108,7 @@
                 </div>
 			</div>
 		</fieldset>
-		
+
 		#{if additionalAttachments.size() > 0}
 		<fieldset id="additionalFileUploadList">
 			<legend>Uploaded additional files</legend>
@@ -101,22 +120,184 @@
                                 <input type="checkbox" value="${attachment.getId()}" name="attachmentToRemove">
                                 <a href="@{Student.viewAttachment(subId,attachment.getId(),attachment.getName())}" target="_blank">
                                     ${attachment.getName()}
-                                </a> 
+                                </a>
                                 <br />(${attachment.getType()} - ${attachment.getDisplaySize()})
-                            </label>                                                     
+                            </label>
                             </p>
                         #{/list}
-                            <input type="submit" value="Remove Selected" class="uploadBtn btn" name="removeAdditional">                        
+                            <input type="submit" value="Remove Selected" class="uploadBtn btn" name="removeAdditional">
                     </div>
 			</div>
-		</fieldset>		
+		</fieldset>
 		#{/if}
 		#{/ifEnabled}
-		
-		<div class="pull-right">
-			<input type="submit" value="Save and Continue >>" class="btn btn-primary" name="submit_next">
-		</div>
-		
+
+
+<!-- JWA START -->
+
+%{
+def activeEmbargosMap = new java.util.LinkedHashMap<org.tdl.vireo.constant.FieldConfig, org.tdl.vireo.model.EmbargoGuarantor>();
+}%
+
+#{list org.tdl.vireo.model.EmbargoGuarantor.values(), as: 'embargoSet'}
+
+%{
+	def EMBARGO_TYPE = EMBARGO_TYPE;
+}%
+
+
+#{list org.tdl.vireo.constant.FieldConfig.values(), as: 'field'}
+
+	%{
+		def currentEmbargoSet = ["EMBARGO_TYPE_",embargoSet].join("");
+
+		if(field.name() == currentEmbargoSet.toString()) {
+			EMBARGO_TYPE = field;
+		}
+			 }%
+
+#{/list}
+
+#{ifEnabled EMBARGO_TYPE}
+	%{
+		activeEmbargosMap.put(EMBARGO_TYPE, embargoSet);
+	}%
+#{/ifEnabled}
+#{/list}
+<!-- JWA END -->
+
+<!-- JWA BEGIN PUBLICHED MATERIAL / REDACTION -->
+<!-- JWA The Harvard Verio2 code uses the PUBLISHED_MATERIAL entries in conf/default.properties for "Redacted Document" so we'll do that also -->
+#{ifEnabled PUBLISHED_MATERIAL }
+<fieldset class="form-horizontal">
+    <legend>#{ifRequired PUBLISHED_MATERIAL}<strong>#{fieldLabel PUBLISHED_MATERIAL /}</strong>#{/ifRequired}#{else}#{fieldLabel PUBLISHED_MATERIAL /}#{/else}</legend>
+
+    <label style="margin-top:15px;">
+        <input style="float: left; margin-top: 5px;" type="checkbox" id="publishedMaterialFlag" name="publishedMaterialFlag" ${(publishedMaterialFlag) ? "checked='true'" : ""}/>
+        <div style="margin-left: 25px;">#{fieldHelp PUBLISHED_MATERIAL /}</div>
+    </label>
+
+    <div style="margin-top: 15px;">
+        <p>In some very rare cases, it may be necessary to submit a redacted document.</p>
+        <p><a href="" onclick="showRedactedReasons();return false;">Click here for some examples</a>:</p>
+    </div>
+
+    <div id="redactedDetails" class="control-group">
+
+        <ul>
+            <li>Commercially sensitive material, for example information or data arising from an industrially sponsored studentship (proprietary information, trade secrets)</li>
+            <li>Sensitive personal data (for example clinical findings - these need not even be personally identifiable if the context gives an indication of their possible identity)</li>
+            <li>Sensitive or risk-based material (occasionally a thesis will feature material that would put the author (and or others) at risk of retribution, physical harm, or incarceration) because of the sensitive nature of the topic</li>
+        </ul>
+
+        <p>For help determining whether you should redact your work, please contact the <a href="https://osc.hul.harvard.edu/" target="osc">Office for Scholarly Communication</a> by phone: 617-495-4089 or email: osc@harvard.edu.</p>
+    </div>
+    #{if !publishedMaterialFlag}
+        <script type="text/javascript">jQuery("#publishedMaterial").closest(".control-group").hide();</script>
+    #{/if}
+</fieldset>
+#{/ifEnabled}
+<!-- JWA END PUBLISHED MATERIAL / REDACTION -->
+
+
+<!-- JWA START EMBARGO CUSTOMIZATIONS -->
+#{ifEnabled EMBARGO_TYPE }
+
+<fieldset class="form-horizontal">
+		<legend>#{ifRequired EMBARGO_TYPE}<strong>#{fieldLabel EMBARGO_TYPE /}</strong>#{/ifRequired}#{else}#{fieldLabel EMBARGO_TYPE /}#{/else}</legend>
+
+    <!-- <p style="margin-top: 35px;">#{fieldHelp EMBARGO_TYPE /}</p> -->
+
+		<p style="margin-top: 35px;">I want my work to be available in Harvard University's open access repository, DASH and ProQuest as soon as it is approved.</p>
+
+    <div class="controls">
+        <input type="radio" id="embargFlagFalse" name="embargoFlag" value="false" checked onclick="hideEmbargoOptions();">&nbsp;&nbsp;Yes&nbsp;&nbsp;&nbsp;&nbsp;
+        <input type="radio" id="embargFlagTrue" name="embargoFlag" value="true" onclick="showEmbargoOptions();">&nbsp;&nbsp;No
+    </div>
+
+    <hr/>
+		<!-- <p> embargo.description from play config here</p> -->
+    <!-- <p>${ play.Play.configuration.get("embargo.description") }</p> -->
+
+    <!-- From default.properties here</B></P> -->
+    #{fieldHelp EMBARGO_TYPE/}
+
+    <div id="embargoType-list" class="control-group" style="display:none">
+        <p style="margin-top: 35px;"><b>* How long would you like to delay access?</b></p>
+
+            <div class="control-group #{errorClass 'embargo' /}">
+                <div class="controls">
+                    <label class="radio">
+												<input type="radio" id="embargo" class="embargoRadioBtn" name="embargo" data-duration="6 months" value="6 months" checked="checked">&nbsp;&nbsp;6 months
+												<p>
+												<input type="radio" id="embargo" class="embargoRadioBtn" name="embargo" data-duration="1 year" value="1 year" >&nbsp;&nbsp;1 year
+												<p>
+												<input type="radio" id="embargo" class="embargoRadioBtn" name="embargo" data-duration="2 years" value="2 years" >&nbsp;&nbsp;2 years
+												<p>
+                    </label>
+                </div>
+            </div>
+
+        <!-- "other" field -->
+        <div class="control-group pound_sign {errorClass 'embargo' /}">
+            <div class="controls">
+                <label class="radio">
+                    <input id="otherRadio" type="radio" name="embargo" class="embargoRadioBtn" name="embargo" value="other" ${(null != embargo && embargo.equalsIgnoreCase('other')) ? "checked='true'" : ""}>&nbsp;&nbsp;Other
+                    <input id="otherEmbargoDuration" type="text" name="otherEmbargoDuration" maxlength="4" size="4" style="width:35px;" value="${otherEmbargoDuration}"/>&nbsp;&nbsp;years
+                </label>
+            </div>
+        </div>
+
+
+        <!-- EMBARGO REASONS -->
+				#{if play.Play.configuration.get('embargo.reason.hide').equalsIgnoreCase("false") }
+        <div class="control-group #{errorClass 'embargoReason'/} required">
+
+            <label class="control-label" for="embargoReason">#{if play.Play.configuration.get('embargo.reason.required').equalsIgnoreCase("true") }* #{/if}Reason for delay:</label>
+            <div class="controls">
+                <select id="embargoReason" name="embargoReason">
+                    <option value='' id="noHold" disabled selected style='display:none;'>Please Choose</option>
+
+                    <option #{if play.Play.configuration.get('embargo.default.reason').equalsIgnoreCase("Publication pending with another publisher")}selected="selected"#{/if} value="Publication pending with another publisher" id="journalHold">Publication pending with another publisher</option>
+
+                    <option #{if play.Play.configuration.get('embargo.default.reason').equalsIgnoreCase("I plan to publish this in a professional publication")}selected="selected"#{/if} value="I plan to publish this in a professional publication" id="planToPublishHold">I plan to publish this in a professional publication</option>
+
+                    <option #{if play.Play.configuration.get('embargo.default.reason').equalsIgnoreCase("Material from the dissertation has been published under embargo/contract")}selected="selected"#{/if} value="Material from the dissertation has been published under embargo/contract" id="dissertationHold">Material from the dissertation has been published under embargo/contract</option>
+
+                    <option #{if play.Play.configuration.get('embargo.default.reason').equalsIgnoreCase("Other")}selected="selected"#{/if} value="Other" id="otherHold">Other</option>
+                </select>
+            </div>
+        </div>
+        #{/if}
+
+
+        <div class="control-group #{errorClass 'embargoNote'/}">
+            <!-- <p>If a longer embargo is necessary, please indicate in a note to the department.</p> -->
+						<label class="control-label" for="embargoNote"><b> #{if play.Play.configuration.get('embargo.note.required').equalsIgnoreCase("true") }* #{/if}${ play.Play.configuration.get('embargo.note.label') }</b></label>
+            <label class="control-label" for="embargoNote"><b>* Please explain:</b></label>
+            <div class="controls">
+                <textarea id="embargoNote" name="embargoNote" class="span4">${embargoNote}</textarea>
+								<!-- put embargo.please.explain.help from play config (application.conf) here -->
+								<p>${ play.Play.configuration.get('embargo.please.explain.help') }</p>
+            </div>
+        </div>
+    </div>
+
+		<!-- JWA Remove this code
+		<input id="defaultEmbargoMonths" type="hidden" value="${ play.Play.configuration.get('embargo.default.months') }" />
+    <input id="defaultEmbargoReason" type="hidden" value="${ play.Play.configuration.get('embargo.default.reason') }" />
+		-->
+</fieldset>
+#{/ifEnabled}
+
+<!-- JWA END -->
+
+
+<div class="pull-right">
+	<input type="submit" value="Save and Continue >>" class="btn btn-primary" name="submit_next">
+</div>
+
+
 	</form>
 </div>
 <div id="stickyNotes" class="span3">

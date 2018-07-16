@@ -17,6 +17,11 @@ import org.tdl.vireo.model.AttachmentType;
 import org.tdl.vireo.model.RoleType;
 import org.tdl.vireo.model.Submission;
 
+// JWA start
+import org.tdl.vireo.model.EmbargoGuarantor;
+import org.tdl.vireo.model.EmbargoType;
+// JWA end
+
 import au.com.bytecode.opencsv.CSVReader;
 
 import controllers.Security;
@@ -27,7 +32,7 @@ import play.Play;
  * The fourth step of the submission process where students upload their files.
  * This step is pretty straight forward, the only tricky thing is that we make
  * sure the uploaded file is a pdf. Other than that pretty much anything goes.
- * 
+ *
  * @author <a href="http://www.scottphillips.com">Scott Phillips</a>
  * @author <a href="bill-ingram.com">Bill Ingram</a>
  * @author Dan Galewsky
@@ -38,7 +43,7 @@ public class FileUpload extends AbstractSubmitStep {
 	 * The fourth step of the submission process where students upload their
 	 * files. We will always take the primary and supplementary file uploads no
 	 * matter what button was clicked.
-	 * 
+	 *
 	 * @param subId
 	 *            The id of the submission.
 	 */
@@ -47,25 +52,25 @@ public class FileUpload extends AbstractSubmitStep {
 
 		// Locate the submission that this upload will be attached to
 		Submission sub = getSubmission();
-		
+
 		// Upload or replace the primary document.
 		if (isFieldEnabled(PRIMARY_ATTACHMENT)) {
 			if (params.get("replacePrimary") != null) {
-				Attachment primaryDoc = sub.getPrimaryDocument();   
+				Attachment primaryDoc = sub.getPrimaryDocument();
 				if (primaryDoc != null) {
 					primaryDoc.delete();
 					sub.save();
 				}
 			}
-			
+
 			if(params.get("primaryDocument",File.class) != null)
 				Student.uploadPrimaryDocument(sub);
 		}
-		
+
 		// Manage additional files
 		if (isFieldEnabled(SUPPLEMENTAL_ATTACHMENT) || isFieldEnabled(SOURCE_ATTACHMENT) || isFieldEnabled(ADMINISTRATIVE_ATTACHMENT)) {
 			if (params.get("removeAdditional") != null)
-				Student.removeAdditional(sub);           	            	
+				Student.removeAdditional(sub);
 			if(params.get("additionalDocument",File.class) != null) {
 				if(params.get("attachmentType").isEmpty())
 					validation.addError("attachmentType", "You must select an attachment type.");
@@ -73,14 +78,14 @@ public class FileUpload extends AbstractSubmitStep {
 					Student.uploadAdditional(sub);
 			}
 		}
-		
+
 		// Verify the form if we are submitting or if jumping from the confirm step.
 		if ("fileUpload".equals(params.get("step")) ||
 			"confirm".equals(flash.get("from-step"))) {
 			verify(sub);
 		}
 
-		
+
 		// 'Save And Continue' button was clicked
 		if (params.get("submit_next") != null && !validation.hasErrors()) {
 			Confirm.confirm(subId);
@@ -101,37 +106,56 @@ public class FileUpload extends AbstractSubmitStep {
 				throw new RuntimeException(ioe);
 			}
 		}
-		
+
 		List<String> attachmentTypes = new ArrayList<String>();
 		for(AttachmentType type : AttachmentType.values()){
 			attachmentTypes.add(type.toString());
 		}
-		
-		renderTemplate("Submit/fileUpload.html",subId, primaryAttachment, additionalAttachments, attachmentTypes, stickies);
+
+
+		// JWA this code brought from DocumentInfo.java
+		List<String> embargos = new ArrayList<String>();
+		for(EmbargoGuarantor gaurantor : EmbargoGuarantor.values() ) {
+			String embargoString = params.get("embargo-"+gaurantor.name());
+
+			if(embargoString != null && embargoString.trim().length() != 0)
+				embargos.add(embargoString);
+		}
+		// JWA end
+
+		// List of all *active* Embargo Types
+		// JWA this code brought in from DocumentInfo.java
+		List<EmbargoType> embargoTypes = settingRepo.findAllActiveEmbargoTypes();
+		renderArgs.put("embargoTypes", embargoTypes);
+		// JWA end
+
+
+		// JWA renderTemplate("Submit/fileUpload.html",subId, primaryAttachment, additionalAttachments, attachmentTypes, stickies);
+		renderTemplate("Submit/fileUpload.html",subId, primaryAttachment, additionalAttachments, attachmentTypes, stickies, sub, embargos);
 	}
-	
+
 	/**
 	 * Verify that the user has supplied a primary document. This will be used
 	 * from both the fileUpload form and the confirmation page.
-	 * 
+	 *
 	 * @return True if the primary document exists, otherwise false.
 	 */
 	public static boolean verify(Submission sub) {
-		
+
 		int numberOfErrorsBefore = validation.errors().size();
 
 		if (isFieldRequired(PRIMARY_ATTACHMENT) && sub.getPrimaryDocument() == null )
 			validation.addError("primaryDocument", "A manuscript file must be uploaded.");
 
-		if (isFieldRequired(SUPPLEMENTAL_ATTACHMENT) && 
+		if (isFieldRequired(SUPPLEMENTAL_ATTACHMENT) &&
 				sub.getAttachmentsByType(AttachmentType.SUPPLEMENTAL).size() == 0)
 			validation.addError("supplementalDocument", "At least one supplemental file is required.");
-		
-		if (isFieldRequired(SOURCE_ATTACHMENT) && 
+
+		if (isFieldRequired(SOURCE_ATTACHMENT) &&
 				sub.getAttachmentsByType(AttachmentType.SOURCE).size() == 0)
 			validation.addError("sourceDocument", "At least one source file is required.");
-		
-		if (isFieldRequired(ADMINISTRATIVE_ATTACHMENT) && 
+
+		if (isFieldRequired(ADMINISTRATIVE_ATTACHMENT) &&
 				sub.getAttachmentsByType(AttachmentType.ADMINISTRATIVE).size() == 0)
 			validation.addError("administrativeDocument", "At least one administrative file is required.");
 
@@ -170,8 +194,8 @@ public class FileUpload extends AbstractSubmitStep {
                 validation.addError("fileSizeTotal", "The total of all files must not exceed " + maxFileSizeTotal + " MB (" + maxFileSizeTotal / 1024 + " GB).");
             }
         }
-		
-		if (numberOfErrorsBefore == validation.errors().size()) 
+
+		if (numberOfErrorsBefore == validation.errors().size())
 			return true;
 		else
 			return false;
